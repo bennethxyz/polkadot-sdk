@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import csv
 import json
 import re
 import sys
@@ -90,7 +91,28 @@ def collect_paid_issues(raw_issues: List[Dict], limit: int) -> List[Dict]:
     return paid[:limit] if limit else paid
 
 
-def output_issues(issues: List[Dict], as_json: bool) -> None:
+def output_issues(issues: List[Dict], as_json: bool, csv_path: Optional[str]) -> None:
+    if csv_path:
+        rows = [
+            {
+                "reward": issue["reward"],
+                "repo": issue["repo"],
+                "title": issue["title"],
+                "url": issue["url"],
+                "labels": ",".join(issue["labels"]),
+            }
+            for issue in issues
+        ]
+        target = sys.stdout if csv_path == "-" else open(csv_path, "w", newline="", encoding="utf-8")
+        try:
+            writer = csv.DictWriter(target, fieldnames=["reward", "repo", "title", "url", "labels"])
+            writer.writeheader()
+            writer.writerows(rows)
+        finally:
+            if target is not sys.stdout:
+                target.close()
+        return
+
     if as_json:
         payload = [
             {
@@ -117,6 +139,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--per-page", type=int, default=100, help="Results per page (max 100)")
     parser.add_argument("--limit", type=int, default=10, help="Maximum issues to output (0 for all)")
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of table output")
+    parser.add_argument("--csv", help="Write results to CSV file (use '-' for stdout)")
     parser.add_argument("--query", default=DEFAULT_QUERY, help="Override the GitHub search query")
     return parser.parse_args()
 
@@ -134,7 +157,7 @@ def main() -> int:
         sys.stderr.write("No paid good first issues found with the current filters.\n")
         return 1
 
-    output_issues(issues, args.json)
+    output_issues(issues, args.json, args.csv)
     return 0
 
 
